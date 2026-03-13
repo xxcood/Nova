@@ -645,20 +645,20 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
     📱 Download Android App
   </a>
 </div>
-           <div className="quick-login">
-            <div className="quick-title">{rtl?"دخول سريع:":"Quick login:"}</div>
-            <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center"}}>
-              {users.filter(x=>x.active).map(x=>(
-                <div key={x.id} className="q-chip" onClick={()=>onLogin(x)}>
-                  <div className="av" style={{width:18,height:18,background:ROLE_AVATAR_COLORS[x.role]||"#555",fontSize:7,color:"#fff"}}>{x.avatar}</div>
-                  {x.name.split(" ")[0]}
-                  <span style={{fontSize:9,color:ROLE_AVATAR_COLORS[x.role]||"#888",fontWeight:600}}>{ROLES[x.role]?.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+          //  <div className="quick-login">
+         //   <div className="quick-title">{rtl?"دخول سريع:":"Quick login:"}</div>
+         //    <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center"}}>
+          //     {users.filter(x=>x.active).map(x=>(
+          //       <div key={x.id} className="q-chip" onClick={()=>onLogin(x)}>
+          //         <div className="av" style={{width:18,height:18,background:ROLE_AVATAR_COLORS[x.role]||"#555",fontSize:7,color:"#fff"}}>{x.avatar}</div>
+          //         {x.name.split(" ")[0]}
+          //         <span style={{fontSize:9,color:ROLE_AVATAR_COLORS[x.role]||"#888",fontWeight:600}}>{ROLES[x.role]?.label}</span>
+           //      </div>
+           //    ))}
+           //  </div>
+         //  </div>
+      //   </div>
+     //  </div>
     </>
   );
   
