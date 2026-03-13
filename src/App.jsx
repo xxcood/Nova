@@ -629,7 +629,26 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
           <div style={{marginTop:10,display:"flex",justifyContent:"center"}}>
             <button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button>
           </div>
-          <div className="quick-login">
+<div style={{marginTop:10,display:"flex",justifyContent:"center"}}>
+  <button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button>
+</div>
+
+<div style={{marginTop:12, textAlign:"center"}}>
+  <a 
+    href="/app/NOVAHome.apk" 
+    download
+    style={{
+      display:"inline-flex", alignItems:"center", gap:8,
+      background:"rgba(77,184,122,.14)", color:"#4db87a",
+      border:"1px solid rgba(77,184,122,.3)", borderRadius:8,
+      padding:"8px 16px", fontSize:13, fontWeight:500,
+      textDecoration:"none"
+    }}
+  >
+    📱 Download Android App
+  </a>
+</div>
+           <div className="quick-login">
             <div className="quick-title">{rtl?"دخول سريع:":"Quick login:"}</div>
             <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center"}}>
               {users.filter(x=>x.active).map(x=>(
@@ -645,21 +664,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
       </div>
     </>
   );
-   <div style={{marginTop:16, textAlign:"center"}}>
-  <a 
-    href="/APP/NOVAHome.apk" 
-    download
-    style={{
-      display:"inline-flex", alignItems:"center", gap:8,
-      background:"rgba(77,184,122,.14)", color:"#4db87a",
-      border:"1px solid rgba(77,184,122,.3)", borderRadius:8,
-      padding:"8px 16px", fontSize:13, fontWeight:500,
-      textDecoration:"none"
-    }}
-  >
-    📱 Download Android App
-  </a>
-</div>
+  
 }
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────
