@@ -645,6 +645,21 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
       </div>
     </>
   );
+   <div style={{marginTop:16, textAlign:"center"}}>
+  <a 
+    href="/nova-crm.apk" 
+    download
+    style={{
+      display:"inline-flex", alignItems:"center", gap:8,
+      background:"rgba(77,184,122,.14)", color:"#4db87a",
+      border:"1px solid rgba(77,184,122,.3)", borderRadius:8,
+      padding:"8px 16px", fontSize:13, fontWeight:500,
+      textDecoration:"none"
+    }}
+  >
+    📱 Download Android App
+  </a>
+</div>
 }
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────
