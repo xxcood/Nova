@@ -647,7 +647,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
   );
    <div style={{marginTop:16, textAlign:"center"}}>
   <a 
-    href="/nova-crm.apk" 
+    href="/APP/NOVAHome.apk" 
     download
     style={{
       display:"inline-flex", alignItems:"center", gap:8,
