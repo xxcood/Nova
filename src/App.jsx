@@ -629,13 +629,10 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
           <div style={{marginTop:10,display:"flex",justifyContent:"center"}}>
             <button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button>
           </div>
-<div style={{marginTop:10,display:"flex",justifyContent:"center"}}>
-  <button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button>
-</div>
 
 <div style={{marginTop:12, textAlign:"center"}}>
   <a 
-    href="/app/NOVAHome.apk" 
+    href="/NOVAHome.apk" 
     download
     style={{
       display:"inline-flex", alignItems:"center", gap:8,
