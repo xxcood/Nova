@@ -1,7 +1,7 @@
 import { useState, useReducer, useEffect, useCallback, useRef } from "react";
 
 /* ═══════════════════════════════════════════════════════════════════════
-   NOVA KITCHENS — CRM PRO v4
+   NOVAHome — CRM PRO v4
    ✦ Admin User Management (add/remove/edit users)
    ✦ Strict Role-Based Views (each role sees only their section)
    ✦ Full 10-stage pipeline · Arabic/English · WhatsApp · PDF Quotes
@@ -506,7 +506,7 @@ export default function App() {
         {/* Sidebar */}
         <nav className={`sb${rtl?" rtl":""}`}>
           <div className="sb-logo">
-            <div className="sb-logo-name">✦ NOVA Kitchens</div>
+            <div className="sb-logo-name">✦ NOVAHome</div>
             <div className="sb-logo-sub">CRM Pro</div>
           </div>
           <div className="sb-user">
@@ -612,7 +612,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
       <div className="login-wrap" style={{direction:rtl?"rtl":"ltr"}}>
         <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 50%,rgba(201,168,76,.06) 0%,transparent 60%)"}} />
         <div className="login-card">
-          <div className="login-logo">✦ NOVA Kitchens</div>
+          <div className="login-logo">✦ NOVAHome</div>
           <div className="login-sub">CRM Pro — Kitchen Showroom Management</div>
           {err&&<div className="login-err">{err}</div>}
           <div className="field" style={{marginBottom:11}}>
@@ -1322,7 +1322,7 @@ function NoteModal({id,user,onClose,onSave}) {
 
 // ── WHATSAPP MODAL ─────────────────────────────────────────────────────────
 const WA_MSGS = {
-  contact: n=>`Hello ${n}, thank you for contacting NOVA Kitchens! We'd love to help design your dream kitchen. 🍳`,
+  contact: n=>`Hello ${n}, thank you for contacting NOVAHome! We'd love to help design your dream kitchen. 🍳`,
   measurement: n=>`Hello ${n}, we'd like to confirm your measurement visit. Is the scheduled time convenient for you?`,
   design: n=>`Hello ${n}, your kitchen design is ready! We're excited to share it with you. ✏️`,
   budget: n=>`Hello ${n}, your kitchen quotation has been sent. Please review it and let us know your thoughts.`,
@@ -1388,7 +1388,7 @@ function QuoteModal({job,onClose}) {
       <div id="qp">
         <div className="quote-preview">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,paddingBottom:16,borderBottom:"2px solid #c9a84c"}}>
-            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#8a6f2e",fontWeight:700}}>✦ NOVA Kitchens</div><div style={{fontSize:11,color:"#8a6f2e",marginTop:2}}>Amman, Jordan</div></div>
+            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#8a6f2e",fontWeight:700}}>✦ NOVAHome</div><div style={{fontSize:11,color:"#8a6f2e",marginTop:2}}>Amman, Jordan</div></div>
             <div style={{textAlign:"right"}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:"#2a2016"}}>Kitchen Design Quotation</div><div style={{fontSize:11.5,color:"#6a5a3a",marginTop:3}}>Ref: <strong>{job.quoteNo||"DRAFT"}</strong> · {today}</div></div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:18}}>
