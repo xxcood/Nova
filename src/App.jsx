@@ -659,7 +659,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
            </div>
          </div>
     </div> 
-    </>
+    </a>
   );
   
 }
