@@ -645,7 +645,8 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
     📱 Download Android App
   </a>
 </div>
-         <div className="quick-login"> 
+      {/*
+           <div className="quick-login"> 
           <div className="quick-title">{rtl?"دخول سريع:":"Quick login:"}</div>
            <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center"}}>
                {users.filter(x=>x.active).map(x=>(
@@ -659,6 +660,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
            </div>
          </div>
     </div> 
+    */}
     </>
   );
  }
