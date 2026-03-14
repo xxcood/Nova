@@ -613,7 +613,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
         <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 50%,rgba(201,168,76,.06) 0%,transparent 60%)"}} />
         <div className="login-card">
           <div className="login-logo">✦ NOVAHome</div>
-          <div className="login-sub">CRM Pro — Kitchen Showroom Management</div>
+          <div className="login-sub">CRM Pro — Showroom Management</div>
           {err&&<div className="login-err">{err}</div>}
           <div className="field" style={{marginBottom:11}}>
             <label>{rtl?"اسم المستخدم":"Username"}</label>
@@ -660,9 +660,7 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
            </div>
          </div>
     </div> 
-    </a>
-   
-  );
+   );
  }
  
 
