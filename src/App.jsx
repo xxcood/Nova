@@ -1,10 +1,11 @@
-import { useState, useReducer, useEffect, useCallback, useRef } from "react";
+import { useState, useReducer, useEffect, useCallback } from "react";
 
 /* ═══════════════════════════════════════════════════════════════════════
-   NOVAHome — CRM PRO v4
-   ✦ Admin User Management (add/remove/edit users)
-   ✦ Strict Role-Based Views (each role sees only their section)
-   ✦ Full 10-stage pipeline · Arabic/English · WhatsApp · PDF Quotes
+   NOVAHome — CRM PRO v5
+   ✦ Customer Portal (login with National ID + Phone)
+   ✦ Customer sees ONLY their own progress bar — nothing else
+   ✦ Admin User Management · Role-Based Views · Arabic/English
+   ✦ WhatsApp · PDF Quotes · 10-stage pipeline
 ═══════════════════════════════════════════════════════════════════════ */
 
 // ── ROLE DEFINITIONS ─────────────────────────────────────────────────────
@@ -44,9 +45,16 @@ const ROLES = {
     seeAllJobs: true, canManageUsers: false,
     desc: "Manage production orders and factory status"
   },
+  customer: {
+    label: "Customer", labelAr: "عميل", color: "#c9a84c",
+    nav: ["progress"],
+    canEdit: false, canDelete: false, canApprove: false, canFactory: false,
+    seeAllJobs: false, canManageUsers: false,
+    desc: "Track your kitchen project progress"
+  },
 };
 
-// ── INITIAL USERS (admin can add/remove these) ────────────────────────────
+// ── INITIAL USERS ─────────────────────────────────────────────────────────
 const INITIAL_USERS = [
   { id:"u1", username:"admin",   password:"admin123",   name:"Ahmad Manager",   role:"admin",    avatar:"AM", color:"#3d5c38", active:true },
   { id:"u2", username:"sara",    password:"sara123",    name:"Sara Al-Khatib",  role:"designer", avatar:"SA", color:"#41546a", active:true },
@@ -60,75 +68,78 @@ const INITIAL_USERS = [
 
 // ── PIPELINE STAGES ───────────────────────────────────────────────────────
 const STAGES = [
-  { id:"contact",       en:"First Contact",          ar:"التواصل الأول",        icon:"📞", color:"#5ca8e0",
-    visibleTo:["admin","sales","designer","mgmt","factory"],
-    editableBy:["admin","sales"],
+  { id:"contact",       en:"First Contact",           ar:"التواصل الأول",       icon:"📞", color:"#5ca8e0", customerLabel:"Order Received",       customerLabelAr:"تم استلام الطلب",
+    visibleTo:["admin","sales","designer","mgmt","factory"], editableBy:["admin","sales"],
     tasksEn:["Identify source","Qualify budget","Log customer info","Assign designer"],
     tasksAr:["تحديد المصدر","تحديد الميزانية","تسجيل بيانات العميل","تعيين المصمم"] },
-  { id:"measurement",   en:"Measurement Visit",      ar:"زيارة القياس",          icon:"📐", color:"#7ec8e3",
-    visibleTo:["admin","sales","designer"],
-    editableBy:["admin","sales","designer"],
+  { id:"measurement",   en:"Measurement Visit",       ar:"زيارة القياس",         icon:"📐", color:"#7ec8e3", customerLabel:"Site Measurement",       customerLabelAr:"قياس الموقع",
+    visibleTo:["admin","sales","designer"], editableBy:["admin","sales","designer"],
     tasksEn:["Book site visit","Record dimensions","Note plumbing/electric","Take photos"],
     tasksAr:["حجز الزيارة","تسجيل الأبعاد","ملاحظة السباكة/الكهرباء","التقاط صور"] },
-  { id:"design",        en:"Design Creation",        ar:"إنشاء التصميم",         icon:"✏️", color:"#c9a84c",
-    visibleTo:["admin","sales","designer","mgmt"],
-    editableBy:["admin","designer"],
+  { id:"design",        en:"Design Creation",         ar:"إنشاء التصميم",        icon:"✏️", color:"#c9a84c", customerLabel:"Design In Progress",     customerLabelAr:"التصميم قيد التنفيذ",
+    visibleTo:["admin","sales","designer","mgmt"], editableBy:["admin","designer"],
     tasksEn:["Create 2D floor plan","Render 3D design","Select materials","Prepare design pack"],
     tasksAr:["إنشاء مخطط 2D","تصيير التصميم 3D","اختيار المواد","إعداد حزمة التصميم"] },
-  { id:"cust_approval", en:"Customer Approval",      ar:"موافقة العميل",          icon:"👤", color:"#e08c3c",
-    visibleTo:["admin","sales","designer","mgmt"],
-    editableBy:["admin","sales","mgmt"],
+  { id:"cust_approval", en:"Customer Approval",       ar:"موافقة العميل",         icon:"👤", color:"#e08c3c", customerLabel:"Awaiting Your Approval", customerLabelAr:"بانتظار موافقتك",
+    visibleTo:["admin","sales","designer","mgmt"], editableBy:["admin","sales","mgmt"],
     tasksEn:["Present design","Note revisions","Get written approval","Update if needed"],
     tasksAr:["عرض التصميم","تدوين التعديلات","الحصول على موافقة","التحديث إذا لزم"] },
-  { id:"mgmt_approval", en:"Management Approval",    ar:"موافقة الإدارة",         icon:"🏛️", color:"#d4a843",
-    visibleTo:["admin","mgmt"],
-    editableBy:["admin","mgmt"],
+  { id:"mgmt_approval", en:"Management Approval",     ar:"موافقة الإدارة",        icon:"🏛️", color:"#d4a843", customerLabel:"Final Review",           customerLabelAr:"المراجعة النهائية",
+    visibleTo:["admin","mgmt"], editableBy:["admin","mgmt"],
     tasksEn:["Submit to management","Review costings","Get sign-off","Finalize spec"],
     tasksAr:["تقديم للإدارة","مراجعة التكاليف","الحصول على موافقة","إنهاء المواصفات"] },
-  { id:"budget",        en:"Budget & Quotation",     ar:"الميزانية والعرض",       icon:"💰", color:"#9c6ce0",
-    visibleTo:["admin","sales","mgmt"],
-    editableBy:["admin","sales"],
+  { id:"budget",        en:"Budget & Quotation",      ar:"الميزانية والعرض",      icon:"💰", color:"#9c6ce0", customerLabel:"Quotation Prepared",     customerLabelAr:"تم إعداد عرض السعر",
+    visibleTo:["admin","sales","mgmt"], editableBy:["admin","sales"],
     tasksEn:["Prepare itemized quote","Apply discounts","Send quotation","Follow up"],
     tasksAr:["إعداد عرض مفصل","تطبيق الخصومات","إرسال العرض","المتابعة"] },
-  { id:"contract",      en:"Sign Contract",          ar:"توقيع العقد",            icon:"📝", color:"#4caf7d",
-    visibleTo:["admin","sales","mgmt"],
-    editableBy:["admin","sales"],
+  { id:"contract",      en:"Sign Contract",           ar:"توقيع العقد",           icon:"📝", color:"#4caf7d", customerLabel:"Contract Signed",        customerLabelAr:"تم توقيع العقد",
+    visibleTo:["admin","sales","mgmt"], editableBy:["admin","sales"],
     tasksEn:["Prepare contract","Collect deposit 50%","Get signature","Log contract number"],
     tasksAr:["إعداد العقد","تحصيل العربون 50%","الحصول على التوقيع","تسجيل رقم العقد"] },
-  { id:"factory",       en:"Factory / Production",   ar:"المصنع / الإنتاج",       icon:"🏭", color:"#e05ca0",
-    visibleTo:["admin","factory","mgmt"],
-    editableBy:["admin","factory"],
+  { id:"factory",       en:"Factory / Production",    ar:"المصنع / الإنتاج",      icon:"🏭", color:"#e05ca0", customerLabel:"Being Manufactured",     customerLabelAr:"قيد التصنيع",
+    visibleTo:["admin","factory","mgmt"], editableBy:["admin","factory"],
     tasksEn:["Send production order","Confirm factory receipt","Track production","QC check"],
     tasksAr:["إرسال أمر الإنتاج","تأكيد استلام المصنع","متابعة الإنتاج","فحص الجودة"] },
-  { id:"installation",  en:"Delivery & Installation",ar:"التسليم والتركيب",        icon:"🔧", color:"#4caf7d",
-    visibleTo:["admin","sales","factory"],
-    editableBy:["admin","sales","factory"],
+  { id:"installation",  en:"Delivery & Installation", ar:"التسليم والتركيب",       icon:"🔧", color:"#4caf7d", customerLabel:"Installation Day",       customerLabelAr:"يوم التركيب",
+    visibleTo:["admin","sales","factory"], editableBy:["admin","sales","factory"],
     tasksEn:["Schedule delivery","Confirm install team","Complete installation","Customer sign-off"],
     tasksAr:["جدولة التسليم","تأكيد فريق التركيب","إتمام التركيب","توقيع العميل"] },
-  { id:"aftersales",    en:"After-Sales",             ar:"ما بعد البيع",           icon:"⭐", color:"#c9a84c",
-    visibleTo:["admin","sales","mgmt"],
-    editableBy:["admin","sales"],
+  { id:"aftersales",    en:"After-Sales",             ar:"ما بعد البيع",          icon:"⭐", color:"#c9a84c", customerLabel:"Project Complete!",      customerLabelAr:"اكتمل مشروعك!",
+    visibleTo:["admin","sales","mgmt"], editableBy:["admin","sales"],
     tasksEn:["Send satisfaction survey","Log snagging","Issue warranty cert","Request review"],
     tasksAr:["إرسال استبيان","تسجيل المشكلات","إصدار شهادة الضمان","طلب تقييم"] },
 ];
+
 const STAGE_IDS = STAGES.map(s=>s.id);
 const SOURCES = ["Walk-In","Referral","Website","Instagram","Facebook","Phone","Exhibition","Google Ads","Partner"];
 const STYLES = ["Modern","Classic","Contemporary","Rustic","Industrial","Minimalist","Traditional","Bespoke"];
 const DESIGNERS_LIST = ["Sara Al-Khatib","Omar Nasser","Leila Haddad","Karim Mansour"];
 const FACTORY_STATUSES = ["Order Sent","Confirmed","In Production","QC Check","Ready for Delivery","Delivered"];
 const AV_COLORS = ["#3d5c38","#3b506b","#5c3b3b","#5c4e3b","#3b5a5c","#523b5c","#4a3b5c","#3b4a5c"];
-const ROLE_AVATAR_COLORS = { admin:"#8a6f2e", sales:"#2e5c8a", designer:"#5c2e8a", mgmt:"#8a4a2e", factory:"#2e8a5c" };
+const ROLE_AVATAR_COLORS = { admin:"#8a6f2e", sales:"#2e5c8a", designer:"#5c2e8a", mgmt:"#8a4a2e", factory:"#2e8a5c", customer:"#6b5520" };
 
 const mkApprovals = () => ({ customer_design:null, management_design:null, customer_budget:null, management_budget:null, contract_signed:false, deposit_received:false });
 
-// ── SEED JOBS ─────────────────────────────────────────────────────────────
+// ── SEED JOBS — each has customerId + customerPhone ───────────────────────
 const SEED_JOBS = [
-  { id:1, name:"Ahmad Al-Rashid", phone:"+962791234567", email:"ahmad@email.com", address:"Abdoun, Amman", source:"Referral", style:"Modern", priority:"High", budget:18500, finalQuote:17800, deposit:8900, stageId:"installation", designer:"Sara Al-Khatib", notes:"Prefers white lacquer. Island with seating.", measureDate:"2026-02-10", measureNotes:"4.2m x 3.8m. Gas on north wall.", designFile:"KIT-2026-041-3D.pdf", quoteNo:"Q-2026-041", contractNo:"C-2026-019", factoryOrderNo:"FAC-2026-088", factoryStatus:"In Production", installDate:"2026-03-18", warrantyMonths:24, approvals:{ customer_design:"approved", management_design:"approved", customer_budget:"approved", management_budget:"approved", contract_signed:true, deposit_received:true }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:4,mgmt_approval:4,budget:4,contract:4,factory:3,installation:1,aftersales:0}, createdAt:"2026-01-15", lastActivity:"2026-03-08", activityLog:[{id:"a1",date:"2026-03-08",text:"Installation scheduled",user:"Ahmad Manager"}] },
-  { id:2, name:"Mona Khalil", phone:"+962772345678", email:"mona.k@mail.com", address:"Swefieh, Amman", source:"Instagram", style:"Classic", priority:"High", budget:12000, finalQuote:11500, deposit:null, stageId:"budget", designer:"Omar Nasser", notes:"Wants marble countertops.", measureDate:"2026-02-25", measureNotes:"3.6m x 2.9m. U-shape.", designFile:"KIT-2026-047-3D.pdf", quoteNo:"Q-2026-047", contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null, approvals:{ customer_design:"approved", management_design:"approved", customer_budget:null, management_budget:"approved", contract_signed:false, deposit_received:false }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:4,mgmt_approval:4,budget:2,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-02-01", lastActivity:"2026-03-07", activityLog:[{id:"b1",date:"2026-03-07",text:"Quote sent",user:"Omar Nasser"}] },
-  { id:3, name:"Tariq Hussain", phone:"+962783456789", email:"tariq.h@email.jo", address:"Gardens, Amman", source:"Walk-In", style:"Contemporary", priority:"Medium", budget:9500, finalQuote:null, deposit:null, stageId:"design", designer:"Leila Haddad", notes:"Open-plan preference.", measureDate:"2026-03-02", measureNotes:"5.1m x 4.0m open plan.", designFile:null, quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null, approvals:mkApprovals(), completedTasks:{contact:4,measurement:4,design:1,cust_approval:0,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-02-20", lastActivity:"2026-03-05", activityLog:[{id:"c1",date:"2026-03-05",text:"Measurement completed",user:"Leila Haddad"}] },
-  { id:4, name:"Rana Aziz", phone:"+962794567890", email:"rana@home.com", address:"Dabouq, Amman", source:"Website", style:"Minimalist", priority:"Medium", budget:22000, finalQuote:null, deposit:null, stageId:"measurement", designer:"Karim Mansour", notes:"High-end project.", measureDate:"2026-03-13", measureNotes:null, designFile:null, quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null, approvals:mkApprovals(), completedTasks:{contact:4,measurement:0,design:0,cust_approval:0,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-03-08", lastActivity:"2026-03-08", activityLog:[{id:"d1",date:"2026-03-08",text:"Lead created from website",user:"Sales Team"}] },
-  { id:5, name:"Sami Qasim", phone:"+962775678901", email:"sami.q@email.com", address:"Khalda, Amman", source:"Referral", style:"Modern", priority:"High", budget:31000, finalQuote:30500, deposit:15250, stageId:"aftersales", designer:"Sara Al-Khatib", notes:"Installation complete. Very satisfied.", measureDate:"2025-12-01", measureNotes:"6.0m x 4.5m.", designFile:"KIT-2026-018-3D.pdf", quoteNo:"Q-2026-018", contractNo:"C-2026-005", factoryOrderNo:"FAC-2026-022", factoryStatus:"Delivered", installDate:"2026-02-15", warrantyMonths:24, approvals:{ customer_design:"approved", management_design:"approved", customer_budget:"approved", management_budget:"approved", contract_signed:true, deposit_received:true }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:4,mgmt_approval:4,budget:4,contract:4,factory:4,installation:4,aftersales:2}, createdAt:"2025-11-20", lastActivity:"2026-03-01", activityLog:[{id:"e1",date:"2026-03-01",text:"Satisfaction survey sent",user:"Ahmad Manager"}] },
-  { id:6, name:"Faris Al-Omari", phone:"+962797890123", email:"faris@omari.jo", address:"Jubeiha, Amman", source:"Phone", style:"Rustic", priority:"Medium", budget:15000, finalQuote:null, deposit:null, stageId:"cust_approval", designer:"Leila Haddad", notes:"Farmhouse style. Wants solid wood.", measureDate:"2026-02-28", measureNotes:"4.8m x 3.2m.", designFile:"KIT-2026-052-DRAFT.pdf", quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null, approvals:{ customer_design:null, management_design:"approved", customer_budget:null, management_budget:null, contract_signed:false, deposit_received:false }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:1,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-02-10", lastActivity:"2026-03-06", activityLog:[{id:"f1",date:"2026-03-06",text:"Design presented",user:"Leila Haddad"}] },
+  { id:1, name:"Ahmad Al-Rashid", phone:"+962791234567", email:"ahmad@email.com", address:"Abdoun, Amman", source:"Referral", style:"Modern", priority:"High", budget:18500, finalQuote:17800, deposit:8900, stageId:"installation", designer:"Sara Al-Khatib", notes:"Prefers white lacquer. Island with seating.", measureDate:"2026-02-10", measureNotes:"4.2m x 3.8m. Gas on north wall.", designFile:"KIT-2026-041-3D.pdf", quoteNo:"Q-2026-041", contractNo:"C-2026-019", factoryOrderNo:"FAC-2026-088", factoryStatus:"In Production", installDate:"2026-03-18", warrantyMonths:24,
+    customerId:"9876543210", customerPhone:"+962791234567",
+    approvals:{ customer_design:"approved", management_design:"approved", customer_budget:"approved", management_budget:"approved", contract_signed:true, deposit_received:true }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:4,mgmt_approval:4,budget:4,contract:4,factory:3,installation:1,aftersales:0}, createdAt:"2026-01-15", lastActivity:"2026-03-08", activityLog:[{id:"a1",date:"2026-03-08",text:"Installation scheduled",user:"Ahmad Manager"}] },
+  { id:2, name:"Mona Khalil", phone:"+962772345678", email:"mona.k@mail.com", address:"Swefieh, Amman", source:"Instagram", style:"Classic", priority:"High", budget:12000, finalQuote:11500, deposit:null, stageId:"budget", designer:"Omar Nasser", notes:"Wants marble countertops.", measureDate:"2026-02-25", measureNotes:"3.6m x 2.9m. U-shape.", designFile:"KIT-2026-047-3D.pdf", quoteNo:"Q-2026-047", contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null,
+    customerId:"8765432109", customerPhone:"+962772345678",
+    approvals:{ customer_design:"approved", management_design:"approved", customer_budget:null, management_budget:"approved", contract_signed:false, deposit_received:false }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:4,mgmt_approval:4,budget:2,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-02-01", lastActivity:"2026-03-07", activityLog:[{id:"b1",date:"2026-03-07",text:"Quote sent",user:"Omar Nasser"}] },
+  { id:3, name:"Tariq Hussain", phone:"+962783456789", email:"tariq.h@email.jo", address:"Gardens, Amman", source:"Walk-In", style:"Contemporary", priority:"Medium", budget:9500, finalQuote:null, deposit:null, stageId:"design", designer:"Leila Haddad", notes:"Open-plan preference.", measureDate:"2026-03-02", measureNotes:"5.1m x 4.0m open plan.", designFile:null, quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null,
+    customerId:"7654321098", customerPhone:"+962783456789",
+    approvals:mkApprovals(), completedTasks:{contact:4,measurement:4,design:1,cust_approval:0,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-02-20", lastActivity:"2026-03-05", activityLog:[{id:"c1",date:"2026-03-05",text:"Measurement completed",user:"Leila Haddad"}] },
+  { id:4, name:"Rana Aziz", phone:"+962794567890", email:"rana@home.com", address:"Dabouq, Amman", source:"Website", style:"Minimalist", priority:"Medium", budget:22000, finalQuote:null, deposit:null, stageId:"measurement", designer:"Karim Mansour", notes:"High-end project.", measureDate:"2026-03-13", measureNotes:null, designFile:null, quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null,
+    customerId:"6543210987", customerPhone:"+962794567890",
+    approvals:mkApprovals(), completedTasks:{contact:4,measurement:0,design:0,cust_approval:0,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-03-08", lastActivity:"2026-03-08", activityLog:[{id:"d1",date:"2026-03-08",text:"Lead created from website",user:"Sales Team"}] },
+  { id:5, name:"Sami Qasim", phone:"+962775678901", email:"sami.q@email.com", address:"Khalda, Amman", source:"Referral", style:"Modern", priority:"High", budget:31000, finalQuote:30500, deposit:15250, stageId:"aftersales", designer:"Sara Al-Khatib", notes:"Installation complete. Very satisfied.", measureDate:"2025-12-01", measureNotes:"6.0m x 4.5m.", designFile:"KIT-2026-018-3D.pdf", quoteNo:"Q-2026-018", contractNo:"C-2026-005", factoryOrderNo:"FAC-2026-022", factoryStatus:"Delivered", installDate:"2026-02-15", warrantyMonths:24,
+    customerId:"5432109876", customerPhone:"+962775678901",
+    approvals:{ customer_design:"approved", management_design:"approved", customer_budget:"approved", management_budget:"approved", contract_signed:true, deposit_received:true }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:4,mgmt_approval:4,budget:4,contract:4,factory:4,installation:4,aftersales:2}, createdAt:"2025-11-20", lastActivity:"2026-03-01", activityLog:[{id:"e1",date:"2026-03-01",text:"Satisfaction survey sent",user:"Ahmad Manager"}] },
+  { id:6, name:"Faris Al-Omari", phone:"+962797890123", email:"faris@omari.jo", address:"Jubeiha, Amman", source:"Phone", style:"Rustic", priority:"Medium", budget:15000, finalQuote:null, deposit:null, stageId:"cust_approval", designer:"Leila Haddad", notes:"Farmhouse style. Wants solid wood.", measureDate:"2026-02-28", measureNotes:"4.8m x 3.2m.", designFile:"KIT-2026-052-DRAFT.pdf", quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null,
+    customerId:"4321098765", customerPhone:"+962797890123",
+    approvals:{ customer_design:null, management_design:"approved", customer_budget:null, management_budget:null, contract_signed:false, deposit_received:false }, completedTasks:{contact:4,measurement:4,design:4,cust_approval:1,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, createdAt:"2026-02-10", lastActivity:"2026-03-06", activityLog:[{id:"f1",date:"2026-03-06",text:"Design presented",user:"Leila Haddad"}] },
 ];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────
@@ -155,61 +166,65 @@ const CSS = `
   --r:10px;--tr:0.18s ease;
 }
 body{background:var(--bg);color:var(--cr);font-family:var(--fb);font-size:13px;line-height:1.5}
-body.rtl{direction:rtl;font-family:var(--fa)}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
 
 /* Login */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);position:relative;overflow:hidden}
-.login-bg{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(201,168,76,.06) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(90,174,224,.04) 0%,transparent 50%)}
-.login-card{background:var(--sf);border:1px solid var(--b2);border-radius:16px;padding:40px;width:400px;max-width:95vw;position:relative;z-index:1}
+.login-card{background:var(--sf);border:1px solid var(--b2);border-radius:16px;padding:36px;width:400px;max-width:95vw;position:relative;z-index:1;animation:su .3s ease}
 .login-logo{font-family:var(--fd);font-size:28px;color:var(--gold);text-align:center;margin-bottom:3px}
-.login-sub{font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--cr3);text-align:center;margin-bottom:28px}
+.login-sub{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--cr3);text-align:center;margin-bottom:22px}
 .login-err{background:rgba(224,85,85,.12);border:1px solid rgba(224,85,85,.3);border-radius:8px;padding:9px 14px;font-size:12.5px;color:var(--red);margin-bottom:12px;text-align:center}
-.quick-login{margin-top:18px;padding-top:16px;border-top:1px solid var(--b)}
-.quick-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--cr3);margin-bottom:8px;text-align:center}
-.q-chip{display:inline-flex;align-items:center;gap:6px;background:var(--sf2);border:1px solid var(--b);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--cr2);cursor:pointer;transition:var(--tr);margin:3px}
-.q-chip:hover{border-color:var(--gd);color:var(--cr)}
-.role-pill{display:inline-block;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.tab-sw{display:flex;background:var(--sf2);border-radius:10px;padding:3px;margin-bottom:20px;border:1px solid var(--b)}
+.tab-sw-btn{flex:1;padding:9px;border:none;border-radius:8px;cursor:pointer;font-family:var(--fb);font-size:12.5px;font-weight:500;transition:var(--tr);background:transparent;color:var(--cr3)}
+.tab-sw-btn.on{background:var(--sf);color:var(--cr);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+
+/* Customer portal */
+.cust-portal{min-height:100vh;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px 16px}
+.cust-header{width:100%;max-width:640px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+.cust-card{background:var(--sf);border:1px solid var(--b);border-radius:14px;padding:24px;width:100%;max-width:640px;margin-bottom:16px;animation:su .3s ease}
+@keyframes su{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* Stage progress bar */
+.stage-progress{display:flex;flex-direction:column;gap:10px}
+.stage-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--b);background:var(--sf2);transition:var(--tr)}
+.stage-row.done{border-color:rgba(77,184,122,.35);background:rgba(77,184,122,.06)}
+.stage-row.active{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.08)}
+.stage-row.upcoming{opacity:.45}
+.stage-icon-wrap{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.stage-row.done .stage-icon-wrap{background:rgba(77,184,122,.2)}
+.stage-row.active .stage-icon-wrap{background:rgba(201,168,76,.2)}
+.stage-row.upcoming .stage-icon-wrap{background:var(--b)}
+.stage-info{flex:1;min-width:0}
+.stage-name{font-size:13px;font-weight:600;color:var(--cr)}
+.stage-desc{font-size:11.5px;color:var(--cr3);margin-top:2px}
+.stage-status-badge{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.big-progress{height:10px;border-radius:10px;background:var(--b);overflow:hidden;margin:8px 0}
+.big-progress-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--gold2),var(--gold));transition:width 1s ease}
 
 /* App */
 .app{display:flex;height:100vh;overflow:hidden}
 .sb{width:224px;min-width:224px;background:var(--sf);border-right:1px solid var(--b);display:flex;flex-direction:column;overflow-y:auto}
-.rtl .sb{border-right:none;border-left:1px solid var(--b)}
 .sb-logo{padding:18px 16px 14px;border-bottom:1px solid var(--b)}
 .sb-logo-name{font-family:var(--fd);font-size:20px;color:var(--gold)}
-.rtl .sb-logo-name{font-family:var(--fa)}
 .sb-logo-sub{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:var(--cr3);margin-top:2px}
-.rtl .sb-logo-sub{letter-spacing:0;font-size:10px}
 .sb-user{padding:11px 14px;border-bottom:1px solid var(--b);background:var(--sf2);display:flex;align-items:center;gap:9px}
 .sb-user-name{font-size:12px;font-weight:600;color:var(--cr)}
 .sb-user-role{font-size:10px;color:var(--cr3)}
 .sb-nav{padding:10px 8px 0;flex:1}
-.sb-section-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:var(--gd);padding:0 8px;margin:10px 0 5px}
-.rtl .sb-section-lbl{letter-spacing:0;font-size:10px}
 .sb-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--cr2);font-size:12.5px;transition:var(--tr);user-select:none}
-.rtl .sb-item{flex-direction:row-reverse;text-align:right}
 .sb-item:hover{background:var(--sf2);color:var(--cr)}
 .sb-item.on{background:var(--gg);color:var(--gold)}
 .sb-item .ico{width:18px;text-align:center;font-size:14px;flex-shrink:0}
 .sb-badge{margin-left:auto;background:var(--gold);color:#000;font-size:10px;font-weight:700;border-radius:20px;padding:1px 6px}
-.rtl .sb-badge{margin-left:0;margin-right:auto}
 .sb-badge.red{background:var(--red);color:#fff}
 .sb-bottom{padding:10px 8px;border-top:1px solid var(--b)}
-
-/* Main */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .topbar{background:var(--sf);border-bottom:1px solid var(--b);height:52px;padding:0 20px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .topbar-title{font-family:var(--fd);font-size:20px;color:var(--cr);flex:1}
-.rtl .topbar-title{font-family:var(--fa);font-size:18px}
 .content{flex:1;overflow-y:auto;padding:18px}
-
-/* Role banner */
 .role-banner{padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:12.5px;display:flex;align-items:center;gap:10px;border:1px solid}
-
-/* Buttons */
 .btn{padding:6px 13px;border-radius:8px;border:none;cursor:pointer;font-family:var(--fb);font-size:12.5px;font-weight:500;transition:var(--tr);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.rtl .btn{font-family:var(--fa)}
 .btn-gold{background:var(--gold);color:#000}.btn-gold:hover{background:#d4b460}
 .btn-ghost{background:var(--sf2);color:var(--cr2);border:1px solid var(--b)}.btn-ghost:hover{color:var(--cr);border-color:var(--b2)}
 .btn-green{background:rgba(77,184,122,.14);color:var(--green);border:1px solid rgba(77,184,122,.3)}.btn-green:hover{background:rgba(77,184,122,.24)}
@@ -218,32 +233,22 @@ body.rtl{direction:rtl;font-family:var(--fa)}
 .btn-wa{background:rgba(37,211,102,.12);color:#25d366;border:1px solid rgba(37,211,102,.28)}
 .btn-sm{padding:4px 10px;font-size:11.5px}
 .btn-xs{padding:2px 8px;font-size:11px}
-
-/* Cards */
 .card{background:var(--sf);border:1px solid var(--b);border-radius:var(--r);padding:16px}
 .card-title{font-family:var(--fd);font-size:16px;color:var(--cr);margin-bottom:13px}
-.rtl .card-title{font-family:var(--fa);font-size:15px}
-
-/* Stats */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
 .stat{background:var(--sf);border:1px solid var(--b);border-radius:var(--r);padding:14px;position:relative;overflow:hidden}
 .stat::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--c,var(--gold))}
 .stat-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--cr3)}
 .stat-val{font-family:var(--fd);font-size:26px;color:var(--cr);margin:3px 0 1px}
 .stat-ico{position:absolute;right:12px;top:12px;font-size:20px;opacity:.18}
-
-/* Table */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{padding:9px 10px;text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--gd);font-weight:500;border-bottom:1px solid var(--b);white-space:nowrap}
-.rtl th{text-align:right;letter-spacing:0}
 td{padding:9px 10px;border-bottom:1px solid rgba(42,38,30,.5);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr.clk:hover td{background:rgba(201,168,76,.03);cursor:pointer}
 .td-name{font-weight:500;color:var(--cr);font-size:13px}
 .td-sub{font-size:10.5px;color:var(--cr3);margin-top:1px}
-
-/* Badges */
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
 .b-blue{background:rgba(90,174,224,.14);color:var(--blue)}
 .b-gold{background:rgba(201,168,76,.14);color:var(--gold)}
@@ -253,15 +258,11 @@ tr.clk:hover td{background:rgba(201,168,76,.03);cursor:pointer}
 .b-purple{background:rgba(155,108,224,.14);color:var(--purple)}
 .b-pink{background:rgba(224,92,160,.14);color:var(--pink)}
 .b-grey{background:rgba(112,104,94,.14);color:var(--cr3)}
-
-/* Stage track */
 .stage-track{display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid var(--b)}
 .stage-step{flex:1;padding:7px 3px;text-align:center;font-size:8.5px;font-weight:600;text-transform:uppercase;cursor:pointer;transition:var(--tr);border-right:1px solid var(--b)}
 .stage-step:last-child{border-right:none}
 .stage-step:hover{filter:brightness(1.15)}
 .stage-step-icon{font-size:13px;display:block;margin-bottom:2px}
-
-/* Job layout */
 .job-layout{display:grid;grid-template-columns:1fr 298px;gap:13px}
 .stage-panel{background:var(--sf);border:1px solid var(--b);border-radius:var(--r);overflow:hidden}
 .stage-panel-head{padding:13px 15px;border-bottom:1px solid var(--b);display:flex;align-items:center;gap:10px}
@@ -275,8 +276,6 @@ tr.clk:hover td{background:rgba(201,168,76,.03);cursor:pointer}
 .check-lbl{font-size:12.5px;color:var(--cr2);flex:1}
 .check-item.done .check-lbl{color:var(--cr3);text-decoration:line-through}
 .locked-stage{background:rgba(42,38,30,.4);border-radius:8px;padding:14px;text-align:center;font-size:12.5px;color:var(--cr3);margin-top:10px}
-
-/* Info panel */
 .cust-side{display:flex;flex-direction:column;gap:10px}
 .info-blk{background:var(--sf);border:1px solid var(--b);border-radius:var(--r);padding:13px}
 .info-ttl{font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--gd);margin-bottom:9px}
@@ -285,29 +284,22 @@ tr.clk:hover td{background:rgba(201,168,76,.03);cursor:pointer}
 .info-key{color:var(--cr3);white-space:nowrap;flex-shrink:0}
 .info-val{color:var(--cr);font-weight:500;text-align:right;word-break:break-word}
 .gold-val{color:var(--gold);font-weight:600}
-
-/* Approval */
 .appr-card{background:var(--sf2);border:1px solid var(--b);border-radius:8px;padding:10px 12px}
 .appr-card.approved{border-color:rgba(77,184,122,.35);background:rgba(77,184,122,.07)}
 .appr-card.revision{border-color:rgba(224,85,85,.35);background:rgba(224,85,85,.07)}
 .appr-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--cr3);margin-bottom:5px}
 .appr-status{font-size:12.5px;font-weight:600;margin-bottom:6px}
 .appr-btns{display:flex;gap:5px;flex-wrap:wrap}
-
-/* Activity log */
 .act-log{display:flex;flex-direction:column}
 .act-item{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid rgba(42,38,30,.4)}
 .act-item:last-child{border-bottom:none}
 .act-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:5px}
 .act-text{font-size:12px;color:var(--cr2);flex:1;line-height:1.5}
 .act-meta{font-size:10.5px;color:var(--cr3);margin-top:1px}
-
-/* Modal */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);animation:fi .15s ease}
 @keyframes fi{from{opacity:0}to{opacity:1}}
 .modal{background:var(--sf);border:1px solid var(--b2);border-radius:14px;padding:24px;width:560px;max-width:96vw;max-height:92vh;overflow-y:auto;animation:su .2s ease}
 .modal-lg{width:700px}
-@keyframes su{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
 .modal-title{font-family:var(--fd);font-size:20px;color:var(--gold);margin-bottom:16px}
 .modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--b)}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:11px}
@@ -318,16 +310,11 @@ tr.clk:hover td{background:rgba(201,168,76,.03);cursor:pointer}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold2);box-shadow:0 0 0 3px var(--gg)}
 .field textarea{resize:vertical;min-height:68px}
 select option{background:var(--sf2)}
-
-/* User management */
 .user-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
 .user-card{background:var(--sf);border:1px solid var(--b);border-radius:var(--r);padding:14px;position:relative;transition:var(--tr)}
 .user-card:hover{border-color:var(--b2)}
 .user-card.inactive{opacity:.5}
 .user-card-actions{position:absolute;top:10px;right:10px;display:flex;gap:5px}
-.user-role-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;margin-top:6px}
-
-/* Pipeline */
 .kanban-wrap{overflow-x:auto;padding-bottom:8px}
 .kanban{display:grid;gap:9px}
 .kanban-col{background:var(--sf);border:1px solid var(--b);border-radius:var(--r)}
@@ -337,21 +324,13 @@ select option{background:var(--sf2)}
 .kanban-cards{padding:8px;display:flex;flex-direction:column;gap:6px;min-height:60px}
 .k-card{background:var(--sf2);border:1px solid var(--b);border-radius:8px;padding:8px;cursor:pointer;transition:var(--tr)}
 .k-card:hover{border-color:var(--b2);transform:translateY(-1px)}
-
-/* Progress */
 .prog{height:4px;border-radius:4px;background:var(--b);overflow:hidden;margin-top:4px}
 .prog-fill{height:100%;border-radius:4px;transition:width .4s ease}
-
-/* Search */
 .search-in{background:var(--sf2);border:1px solid var(--b);border-radius:8px;padding:7px 11px;color:var(--cr);font-family:var(--fb);font-size:12.5px;outline:none;width:190px;transition:var(--tr)}
 .search-in:focus{border-color:var(--gold2);width:230px}
 .filter-sel{background:var(--sf2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;color:var(--cr);font-family:var(--fb);font-size:12.5px;outline:none}
-
-/* Toast */
 .toast{position:fixed;bottom:20px;right:20px;z-index:999;background:var(--sf);border:1px solid var(--b);border-left:3px solid var(--gold);border-radius:8px;padding:10px 15px;font-size:12.5px;color:var(--cr);box-shadow:0 6px 24px rgba(0,0,0,.5);animation:tri .25s ease;max-width:300px}
 @keyframes tri{from{transform:translateX(50px);opacity:0}to{transform:none;opacity:1}}
-
-/* Misc */
 .av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
 .empty{text-align:center;padding:32px 20px;color:var(--cr3);font-size:12.5px}
 .empty .ei{font-size:26px;margin-bottom:8px}
@@ -359,18 +338,20 @@ select option{background:var(--sf2)}
 .inline-field{display:flex;gap:6px;align-items:center}
 .inline-field input,.inline-field select{flex:1;background:var(--sf2);border:1px solid var(--b);border-radius:7px;padding:7px 10px;color:var(--cr);font-family:var(--fb);font-size:12.5px;outline:none;transition:var(--tr)}
 .inline-field input:focus,.inline-field select:focus{border-color:var(--gold2)}
-.divider{height:1px;background:var(--b);margin:12px 0}
 .wa-preview{background:var(--sf2);border:1px solid var(--b);border-radius:12px;padding:14px;margin:10px 0;font-size:13px;color:var(--cr2);line-height:1.7;white-space:pre-wrap;border-left:3px solid #25d366}
 .quote-preview{background:#fff;color:#1a1a1a;border-radius:8px;padding:28px;font-family:'Outfit',sans-serif}
 .qi-row{display:grid;grid-template-columns:2fr 50px 80px 100px 28px;gap:6px;align-items:center;margin-bottom:6px}
 .qi-input{background:var(--sf2);border:1px solid var(--b);border-radius:6px;padding:6px 8px;color:var(--cr);font-family:var(--fb);font-size:12px;outline:none;width:100%}
 .qi-input:focus{border-color:var(--gold2)}
-
 @media(max-width:900px){
   .sb{width:180px;min-width:180px}
   .stats-row{grid-template-columns:repeat(2,1fr)}
   .two-col,.job-layout{grid-template-columns:1fr}
   .user-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:500px){
+  .cust-card{padding:16px}
+  .stage-row{padding:10px 12px;gap:10px}
 }
 `;
 
@@ -387,15 +368,11 @@ function reducer(s, a) {
     case "FILTER": return {...s, filter:a.v};
     case "TOAST": return {...s, toast:a.msg};
     case "CTST": return {...s, toast:null};
-
-    // Jobs
     case "ADD_JOB": {
-      const j = {...a.job, id:uid(), createdAt:new Date().toISOString().slice(0,10), lastActivity:new Date().toISOString().slice(0,10), stageId:"contact", approvals:mkApprovals(), activityLog:[mkLog("Job created — "+a.job.source, a.user)], completedTasks:{contact:0,measurement:0,design:0,cust_approval:0,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, finalQuote:null, deposit:null, quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null, designFile:null };
+      const j = {...a.job, id:uid(), createdAt:new Date().toISOString().slice(0,10), lastActivity:new Date().toISOString().slice(0,10), stageId:"contact", approvals:mkApprovals(), activityLog:[mkLog("Job created — "+a.job.source, a.user)], completedTasks:{contact:0,measurement:0,design:0,cust_approval:0,mgmt_approval:0,budget:0,contract:0,factory:0,installation:0,aftersales:0}, finalQuote:null, deposit:null, quoteNo:null, contractNo:null, factoryOrderNo:null, factoryStatus:null, installDate:null, warrantyMonths:null, designFile:null, customerId:"", customerPhone:"" };
       return {...s, jobs:[j,...s.jobs], modal:null, toast:"✦ New job: "+j.name};
     }
-    case "UPD_JOB": {
-      return {...s, jobs:s.jobs.map(j=>j.id===a.job.id?{...j,...a.job}:j), modal:null, toast:"Job updated"};
-    }
+    case "UPD_JOB": return {...s, jobs:s.jobs.map(j=>j.id===a.job.id?{...j,...a.job}:j), modal:null, toast:"Job updated"};
     case "DEL_JOB": return {...s, jobs:s.jobs.filter(j=>j.id!==a.id), sel:null, view:"jobs", toast:"Job deleted"};
     case "ADV_STAGE": {
       const j=s.jobs.find(x=>x.id===a.id); const idx=stageIdx(j.stageId);
@@ -426,15 +403,8 @@ function reducer(s, a) {
       const l=mkLog(`${a.field} updated`,a.user);
       return {...s,jobs:s.jobs.map(x=>x.id===a.id?{...x,[a.field]:a.val,activityLog:[l,...(x.activityLog||[])],lastActivity:l.date}:x),toast:"Saved ✓"};
     }
-
-    // Users (admin only)
-    case "ADD_USER": {
-      const u = {...a.user, id:uid(), active:true };
-      return {...s, users:[...s.users, u], modal:null, toast:"User added: "+u.name};
-    }
-    case "UPD_USER": {
-      return {...s, users:s.users.map(u=>u.id===a.user.id?{...u,...a.user}:u), modal:null, toast:"User updated"};
-    }
+    case "ADD_USER": return {...s, users:[...s.users, {...a.user, id:uid(), active:true}], modal:null, toast:"User added: "+a.user.name};
+    case "UPD_USER": return {...s, users:s.users.map(u=>u.id===a.user.id?{...u,...a.user}:u), modal:null, toast:"User updated"};
     case "TOGGLE_USER": {
       const users=s.users.map(u=>u.id===a.id?{...u,active:!u.active}:u);
       const u=users.find(x=>x.id===a.id);
@@ -444,7 +414,6 @@ function reducer(s, a) {
       if(a.id==="u1") return {...s, toast:"Cannot delete the main admin!"};
       return {...s, users:s.users.filter(u=>u.id!==a.id), modal:null, toast:"User removed"};
     }
-
     default: return s;
   }
 }
@@ -463,48 +432,67 @@ export default function App() {
 
   useEffect(()=>{if(toast){const t=setTimeout(()=>d({type:"CTST"}),3000);return()=>clearTimeout(t);}},[toast]);
 
-  if(!auth) return <LoginScreen users={users} lang={lang} rtl={rtl} onLogin={u=>setAuth(u)} onLang={()=>d({type:"LANG"})} />;
+  // ── Login screen
+  if(!auth) return (
+    <LoginScreen
+      users={users}
+      jobs={jobs}
+      lang={lang}
+      rtl={rtl}
+      onLogin={u=>setAuth(u)}
+      onLang={()=>d({type:"LANG"})}
+    />
+  );
 
+  // ── Customer portal (completely separate view)
+  if(auth.role==="customer") {
+    const custJob = jobs.find(j=>j.id===auth.jobId);
+    return (
+      <>
+        <style>{CSS}</style>
+        <CustomerPortal
+          job={custJob}
+          auth={auth}
+          lang={lang}
+          rtl={rtl}
+          onLang={()=>d({type:"LANG"})}
+          onLogout={()=>setAuth(null)}
+        />
+      </>
+    );
+  }
+
+  // ── Staff portal
   const role = ROLES[auth.role];
   const perm = role;
-
-  // Filter jobs by role
-  const visJobs = perm.seeAllJobs
-    ? jobs
-    : jobs.filter(j => j.designer === auth.name);
-
+  const visJobs = perm.seeAllJobs ? jobs : jobs.filter(j=>j.designer===auth.name);
   const filtered = visJobs.filter(j=>{
     const q=search.toLowerCase();
-    const mq=!q||j.name.toLowerCase().includes(q)||j.phone.includes(q);
-    const mf=filter==="all"||j.stageId===filter;
-    return mq&&mf;
+    return (!q||j.name.toLowerCase().includes(q)||j.phone.includes(q))&&(filter==="all"||j.stageId===filter);
   });
-
   const selJob = jobs.find(j=>j.id===sel);
   const pendAppr = visJobs.filter(j=>j.approvals&&(j.approvals.customer_design===null||j.approvals.management_design===null)&&["cust_approval","mgmt_approval"].includes(j.stageId)).length;
   const factCount = visJobs.filter(j=>j.stageId==="factory").length;
   const totalRev = visJobs.filter(j=>["contract","factory","installation","aftersales"].includes(j.stageId)).reduce((s,j)=>s+(j.finalQuote||j.budget||0),0);
 
-  // Nav items based on role
   const NAV_DEFS = [
-    {v:"dashboard", ico:"◈",  label:"Dashboard",       labelAr:"لوحة التحكم"},
-    {v:"jobs",      ico:"⊕",  label:"All Jobs",         labelAr:"جميع المشاريع", badge:visJobs.filter(j=>j.stageId==="contact").length||null},
-    {v:"pipeline",  ico:"⋮⋮⋮",label:"Pipeline",         labelAr:"خط المبيعات"},
-    {v:"approvals", ico:"✦",  label:"Approvals",        labelAr:"الموافقات", badge:pendAppr||null, red:true},
-    {v:"factory",   ico:"🏭", label:"Factory",          labelAr:"المصنع", badge:factCount||null},
-    {v:"tasks",     ico:"✓",  label:"Tasks",            labelAr:"المهام"},
-    {v:"reports",   ico:"▦",  label:"Reports",          labelAr:"التقارير"},
-    {v:"products",  ico:"◻",  label:"Products",         labelAr:"المنتجات"},
-    {v:"users",     ico:"👥", label:"User Management",  labelAr:"إدارة المستخدمين"},
+    {v:"dashboard",ico:"◈",label:"Dashboard",labelAr:"لوحة التحكم"},
+    {v:"jobs",ico:"⊕",label:"All Jobs",labelAr:"جميع المشاريع",badge:visJobs.filter(j=>j.stageId==="contact").length||null},
+    {v:"pipeline",ico:"⋮⋮⋮",label:"Pipeline",labelAr:"خط المبيعات"},
+    {v:"approvals",ico:"✦",label:"Approvals",labelAr:"الموافقات",badge:pendAppr||null,red:true},
+    {v:"factory",ico:"🏭",label:"Factory",labelAr:"المصنع",badge:factCount||null},
+    {v:"tasks",ico:"✓",label:"Tasks",labelAr:"المهام"},
+    {v:"reports",ico:"▦",label:"Reports",labelAr:"التقارير"},
+    {v:"products",ico:"◻",label:"Products",labelAr:"المنتجات"},
+    {v:"users",ico:"👥",label:"User Management",labelAr:"إدارة المستخدمين"},
   ];
-  const navItems = NAV_DEFS.filter(n => role.nav.includes(n.v));
+  const navItems = NAV_DEFS.filter(n=>role.nav.includes(n.v));
 
   return (
     <>
       <style>{CSS}</style>
       <div className="app" style={{direction:rtl?"rtl":"ltr"}}>
-        {/* Sidebar */}
-        <nav className={`sb${rtl?" rtl":""}`}>
+        <nav className="sb">
           <div className="sb-logo">
             <div className="sb-logo-name">✦ NOVAHome</div>
             <div className="sb-logo-sub">CRM Pro</div>
@@ -513,29 +501,23 @@ export default function App() {
             <div className="av" style={{width:30,height:30,background:ROLE_AVATAR_COLORS[auth.role]||"#555",fontSize:10,color:"#fff"}}>{auth.avatar}</div>
             <div>
               <div className="sb-user-name">{auth.name}</div>
-              <div className="sb-user-role">{rtl ? ROLES[auth.role].labelAr : ROLES[auth.role].label}</div>
+              <div className="sb-user-role">{rtl?ROLES[auth.role].labelAr:ROLES[auth.role].label}</div>
             </div>
           </div>
           <div className="sb-nav">
             {navItems.map(n=>(
               <div key={n.v} className={`sb-item${(view===n.v||(view==="job"&&n.v==="jobs"))?" on":""}`} onClick={()=>d({type:"VIEW",v:n.v})}>
-                <span className="ico">{n.ico}</span>
-                {rtl?n.labelAr:n.label}
+                <span className="ico">{n.ico}</span>{rtl?n.labelAr:n.label}
                 {n.badge?<span className={`sb-badge${n.red?" red":""}`}>{n.badge}</span>:null}
               </div>
             ))}
           </div>
           <div className="sb-bottom">
-            <div className="sb-item" onClick={()=>d({type:"LANG"})}>
-              <span className="ico">🌐</span>{rtl?"English":"عربي"}
-            </div>
-            <div className="sb-item" onClick={()=>setAuth(null)}>
-              <span className="ico">→</span>{rtl?"خروج":"Sign Out"}
-            </div>
+            <div className="sb-item" onClick={()=>d({type:"LANG"})}><span className="ico">🌐</span>{rtl?"English":"عربي"}</div>
+            <div className="sb-item" onClick={()=>setAuth(null)}><span className="ico">→</span>{rtl?"خروج":"Sign Out"}</div>
           </div>
         </nav>
 
-        {/* Main */}
         <div className="main">
           <div className="topbar">
             <div className="topbar-title">
@@ -560,14 +542,10 @@ export default function App() {
           </div>
 
           <div className="content">
-            {/* Role banner for non-admin */}
             {auth.role!=="admin"&&view!=="job"&&(
               <div className="role-banner" style={{background:`${ROLE_AVATAR_COLORS[auth.role]}18`,borderColor:`${ROLE_AVATAR_COLORS[auth.role]}40`,color:ROLE_AVATAR_COLORS[auth.role]}}>
                 <span style={{fontSize:16}}>{{sales:"💼",designer:"✏️",mgmt:"🏛️",factory:"🏭"}[auth.role]}</span>
-                <div>
-                  <strong>{ROLES[auth.role].label} View</strong>
-                  <span style={{fontSize:11.5,marginLeft:8,opacity:.8}}>{ROLES[auth.role].desc}</span>
-                </div>
+                <div><strong>{ROLES[auth.role].label} View</strong><span style={{fontSize:11.5,marginLeft:8,opacity:.8}}>{ROLES[auth.role].desc}</span></div>
               </div>
             )}
             {view==="dashboard"&&<Dashboard jobs={visJobs} totalRev={totalRev} pendAppr={pendAppr} factCount={factCount} dispatch={d} auth={auth} role={role} />}
@@ -583,7 +561,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Modals */}
         {modal==="add"&&<JobModal onClose={()=>d({type:"CLM"})} onSave={j=>d({type:"ADD_JOB",job:j,user:auth.name})} />}
         {modal==="edit"&&mdata&&<JobModal job={mdata} onClose={()=>d({type:"CLM"})} onSave={j=>d({type:"UPD_JOB",job:j})} />}
         {modal==="note"&&mdata&&<NoteModal id={mdata.id} user={auth.name} onClose={()=>d({type:"CLM"})} onSave={(id,text)=>d({type:"ADD_LOG",id,text,user:auth.name})} />}
@@ -591,85 +568,282 @@ export default function App() {
         {modal==="quote"&&mdata&&<QuoteModal job={mdata} onClose={()=>d({type:"CLM"})} />}
         {modal==="addUser"&&<UserModal onClose={()=>d({type:"CLM"})} onSave={u=>d({type:"ADD_USER",user:u})} />}
         {modal==="editUser"&&mdata&&<UserModal user={mdata} onClose={()=>d({type:"CLM"})} onSave={u=>d({type:"UPD_USER",user:u})} />}
-
         {toast&&<div className="toast">{toast}</div>}
       </div>
     </>
   );
 }
 
-// ── LOGIN ─────────────────────────────────────────────────────────────────
-function LoginScreen({users,lang,rtl,onLogin,onLang}) {
-  const [u,su]=useState(""); const [p,sp]=useState(""); const [err,se]=useState("");
-  const try1 = () => {
+// ── LOGIN SCREEN ──────────────────────────────────────────────────────────
+function LoginScreen({users, jobs, lang, rtl, onLogin, onLang}) {
+  const [tab, setTab] = useState("staff");
+  const [u, su] = useState("");
+  const [p, sp] = useState("");
+  const [err, se] = useState("");
+
+  const tryStaff = () => {
     const found = users.find(x=>x.username===u&&x.password===p&&x.active);
     if(found) onLogin(found);
     else se(rtl?"اسم المستخدم أو كلمة المرور غير صحيحة":"Invalid username or password");
   };
+
+  const tryCustomer = () => {
+    // Login with National ID + phone number
+    const job = jobs.find(x=>x.customerId===u.trim()&&x.customerPhone===p.trim());
+    if(job) {
+      onLogin({
+        id: "cust_"+job.id,
+        username: u,
+        name: job.name,
+        role: "customer",
+        avatar: job.name.slice(0,2).toUpperCase(),
+        color: "#8a6f2e",
+        active: true,
+        jobId: job.id,
+      });
+    } else {
+      se(rtl?"الرقم الوطني أو رقم الهاتف غير صحيح":"Invalid National ID or phone number");
+    }
+  };
+
+  const isCust = tab==="customer";
+
   return (
     <>
       <style>{CSS}</style>
       <div className="login-wrap" style={{direction:rtl?"rtl":"ltr"}}>
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 50%,rgba(201,168,76,.06) 0%,transparent 60%)"}} />
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 50%,rgba(201,168,76,.06) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(90,174,224,.03) 0%,transparent 50%)"}} />
         <div className="login-card">
           <div className="login-logo">✦ NOVAHome</div>
-          <div className="login-sub">CRM Pro — Showroom Management</div>
+          <div className="login-sub">Kitchen Showroom Management</div>
+
+          {/* Tab switcher */}
+          <div className="tab-sw">
+            <button className={`tab-sw-btn${!isCust?" on":""}`} onClick={()=>{setTab("staff");se("");su("");sp("");}}>
+              👔 {rtl?"فريق العمل":"Staff Login"}
+            </button>
+            <button className={`tab-sw-btn${isCust?" on":""}`} onClick={()=>{setTab("customer");se("");su("");sp("");}}>
+              🏠 {rtl?"تتبع طلبي":"Track My Order"}
+            </button>
+          </div>
+
           {err&&<div className="login-err">{err}</div>}
-          <div className="field" style={{marginBottom:11}}>
-            <label>{rtl?"اسم المستخدم":"Username"}</label>
-            <input value={u} onChange={e=>{su(e.target.value);se("");}} onKeyDown={e=>e.key==="Enter"&&try1()} autoFocus />
-          </div>
-          <div className="field" style={{marginBottom:16}}>
-            <label>{rtl?"كلمة المرور":"Password"}</label>
-            <input type="password" value={p} onChange={e=>{sp(e.target.value);se("");}} onKeyDown={e=>e.key==="Enter"&&try1()} />
-          </div>
-          <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"10px"}} onClick={try1}>
-            {rtl?"تسجيل الدخول":"Sign In"}
-          </button>
-          <div style={{marginTop:10,display:"flex",justifyContent:"center"}}>
+
+          {!isCust ? (
+            <>
+              <div className="field" style={{marginBottom:11}}>
+                <label>{rtl?"اسم المستخدم":"Username"}</label>
+                <input value={u} onChange={e=>{su(e.target.value);se("");}} onKeyDown={e=>e.key==="Enter"&&tryStaff()} autoFocus placeholder="e.g. admin" />
+              </div>
+              <div className="field" style={{marginBottom:16}}>
+                <label>{rtl?"كلمة المرور":"Password"}</label>
+                <input type="password" value={p} onChange={e=>{sp(e.target.value);se("");}} onKeyDown={e=>e.key==="Enter"&&tryStaff()} />
+              </div>
+              <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"10px"}} onClick={tryStaff}>
+                {rtl?"تسجيل الدخول":"Sign In"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{background:"rgba(201,168,76,.07)",border:"1px solid rgba(201,168,76,.2)",borderRadius:8,padding:"10px 13px",marginBottom:14,fontSize:12.5,color:"var(--cr3)",lineHeight:1.7}}>
+                {rtl
+                  ? "أدخل رقمك الوطني ورقم هاتفك المسجل لمتابعة مشروع مطبخك 🏠"
+                  : "Enter your National ID and registered phone number to track your kitchen project 🏠"}
+              </div>
+              <div className="field" style={{marginBottom:11}}>
+                <label>{rtl?"الرقم الوطني":"National ID"}</label>
+                <input value={u} onChange={e=>{su(e.target.value);se("");}} onKeyDown={e=>e.key==="Enter"&&tryCustomer()} autoFocus placeholder={rtl?"رقمك الوطني":"e.g. 9876543210"} />
+              </div>
+              <div className="field" style={{marginBottom:16}}>
+                <label>{rtl?"رقم الهاتف المسجل":"Registered Phone"}</label>
+                <input value={p} onChange={e=>{sp(e.target.value);se("");}} onKeyDown={e=>e.key==="Enter"&&tryCustomer()} placeholder="+962 79…" />
+              </div>
+              <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"10px"}} onClick={tryCustomer}>
+                {rtl?"عرض تقدم مشروعي":"View My Project"}
+              </button>
+              <div style={{marginTop:12,fontSize:11.5,color:"var(--cr3)",textAlign:"center",lineHeight:1.6}}>
+                {rtl
+                  ? "للحصول على بيانات الدخول، تواصل مع فريق NOVAHome"
+                  : "Contact NOVAHome team to receive your login credentials"}
+              </div>
+            </>
+          )}
+
+          <div style={{marginTop:12,display:"flex",justifyContent:"center"}}>
             <button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button>
           </div>
 
-<div style={{marginTop:12, textAlign:"center"}}>
-  <a 
-    href="/NOVAHome.apk" 
-    download
-    style={{
-      display:"inline-flex", alignItems:"center", gap:8,
-      background:"rgba(77,184,122,.14)", color:"#4db87a",
-      border:"1px solid rgba(77,184,122,.3)", borderRadius:8,
-      padding:"8px 16px", fontSize:13, fontWeight:500,
-      textDecoration:"none"
-    }}
-  >
-    📱 Download Android App
-  </a>
-</div>
-     
-          {/* <div className="quick-login"> 
-          <div className="quick-title">{rtl?"دخول سريع:":"Quick login:"}</div>
-           <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center"}}>
-               {users.filter(x=>x.active).map(x=>(
-                <div key={x.id} className="q-chip" onClick={()=>onLogin(x)}>
-                 <div className="av" style={{width:18,height:18,background:ROLE_AVATAR_COLORS[x.role]||"#555",fontSize:7,color:"#fff"}}>{x.avatar}</div>
+          {/* APK DOWNLOAD BUTTON - uncomment to show
+          <div style={{marginTop:12,textAlign:"center"}}>
+            <a href="/NOVAHome.apk" download style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(77,184,122,.14)",color:"#4db87a",border:"1px solid rgba(77,184,122,.3)",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:500,textDecoration:"none"}}>
+              📱 Download Android App
+            </a>
+          </div>
+          */}
+
+          {/* QUICK LOGIN CHIPS - uncomment to show
+          <div style={{marginTop:18,paddingTop:16,borderTop:"1px solid var(--b)"}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"var(--cr3)",marginBottom:8,textAlign:"center"}}>Quick login:</div>
+            <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center"}}>
+              {users.filter(x=>x.active).map(x=>(
+                <div key={x.id} style={{display:"inline-flex",alignItems:"center",gap:6,background:"var(--sf2)",border:"1px solid var(--b)",borderRadius:20,padding:"4px 10px",fontSize:11,color:"var(--cr2)",cursor:"pointer",margin:3}} onClick={()=>onLogin(x)}>
+                  <div className="av" style={{width:18,height:18,background:ROLE_AVATAR_COLORS[x.role]||"#555",fontSize:7,color:"#fff"}}>{x.avatar}</div>
                   {x.name.split(" ")[0]}
-                   <span style={{fontSize:9,color:ROLE_AVATAR_COLORS[x.role]||"#888",fontWeight:600}}>{ROLES[x.role]?.label}</span>
+                  <span style={{fontSize:9,color:ROLE_AVATAR_COLORS[x.role]||"#888",fontWeight:600}}>{ROLES[x.role]?.label}</span>
                 </div>
-             ))}
+              ))}
             </div>
-           </div>
-           */}
-         </div>
-    </div> 
-       </>
-   );
- }
- 
+          </div>
+          */}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── CUSTOMER PORTAL ───────────────────────────────────────────────────────
+function CustomerPortal({job, auth, lang, rtl, onLang, onLogout}) {
+  if(!job) return (
+    <div className="cust-portal" style={{direction:rtl?"rtl":"ltr"}}>
+      <div className="cust-card" style={{textAlign:"center",padding:40}}>
+        <div style={{fontSize:40,marginBottom:12}}>🏠</div>
+        <div style={{fontFamily:"var(--fd)",fontSize:20,color:"var(--cr)",marginBottom:8}}>Project Not Found</div>
+        <div style={{color:"var(--cr3)",fontSize:13,marginBottom:20}}>We couldn't find your project. Please contact NOVAHome.</div>
+        <button className="btn btn-ghost" onClick={onLogout}>← Back to Login</button>
+      </div>
+    </div>
+  );
+
+  const sidx = stageIdx(job.stageId);
+  const pct = completionPct(job.completedTasks);
+
+  return (
+    <div className="cust-portal" style={{direction:rtl?"rtl":"ltr"}}>
+      {/* Header */}
+      <div className="cust-header">
+        <div style={{fontFamily:"var(--fd)",fontSize:22,color:"var(--gold)"}}>✦ NOVAHome</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button>
+          <button className="btn btn-ghost btn-sm" onClick={onLogout}>{rtl?"خروج":"Sign Out"}</button>
+        </div>
+      </div>
+
+      {/* Welcome card */}
+      <div className="cust-card">
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18}}>
+          <div className="av" style={{width:50,height:50,background:"var(--gd)",fontSize:16,color:"#fff"}}>{initials(job.name)}</div>
+          <div>
+            <div style={{fontFamily:"var(--fd)",fontSize:22,color:"var(--cr)"}}>
+              {rtl?"مرحباً،":"Welcome,"} {job.name.split(" ")[0]}
+            </div>
+            <div style={{fontSize:12.5,color:"var(--cr3)",marginTop:2}}>
+              {rtl?"مشروع مطبخك قيد التنفيذ":"Your kitchen project is underway"} ✦
+            </div>
+          </div>
+        </div>
+
+        {/* Overall progress bar */}
+        <div style={{marginBottom:6,display:"flex",justifyContent:"space-between",fontSize:12.5}}>
+          <span style={{color:"var(--cr3)"}}>{rtl?"التقدم الإجمالي":"Overall Progress"}</span>
+          <span style={{color:"var(--gold)",fontWeight:700,fontSize:15}}>{pct}%</span>
+        </div>
+        <div className="big-progress">
+          <div className="big-progress-fill" style={{width:pct+"%"}} />
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--cr3)",marginTop:4}}>
+          <span>{rtl?"بداية المشروع":"Project Start"}</span>
+          <span>{rtl?"مكتمل":"Complete"} 🎉</span>
+        </div>
+
+        {/* Current stage highlight */}
+        <div style={{marginTop:16,background:"rgba(201,168,76,.08)",border:"1px solid rgba(201,168,76,.3)",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:22}}>{stageObj(job.stageId)?.icon}</span>
+          <div>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".08em",color:"var(--gd)",marginBottom:2}}>{rtl?"المرحلة الحالية":"Current Stage"}</div>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--gold)"}}>
+              {rtl ? stageObj(job.stageId)?.customerLabelAr : stageObj(job.stageId)?.customerLabel}
+            </div>
+          </div>
+          {job.installDate&&job.stageId==="installation"&&(
+            <div style={{marginLeft:"auto",textAlign:"center"}}>
+              <div style={{fontSize:10,color:"var(--cr3)"}}>{rtl?"موعد التركيب":"Install Date"}</div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--cr)"}}>{fmtD(job.installDate)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Stage-by-stage progress */}
+      <div className="cust-card">
+        <div style={{fontFamily:"var(--fd)",fontSize:17,color:"var(--cr)",marginBottom:16}}>
+          {rtl?"مراحل مشروعك":"Your Project Journey"}
+        </div>
+        <div className="stage-progress">
+          {STAGES.map((s,i)=>{
+            const done = i < sidx;
+            const active = i === sidx;
+            const upcoming = i > sidx;
+            return (
+              <div key={s.id} className={`stage-row ${done?"done":active?"active":"upcoming"}`}>
+                <div className="stage-icon-wrap">
+                  {done ? <span style={{fontSize:17,color:"var(--green)"}}>✓</span> : <span style={{fontSize:17}}>{s.icon}</span>}
+                </div>
+                <div className="stage-info">
+                  <div className="stage-name" style={{color:done?"var(--green)":active?"var(--gold)":"var(--cr2)"}}>
+                    {rtl ? s.customerLabelAr : s.customerLabel}
+                  </div>
+                  {active&&(
+                    <div className="stage-desc">
+                      {rtl?"هذه هي المرحلة الحالية لمشروعك":"This is where your project currently is"}
+                    </div>
+                  )}
+                  {done&&(
+                    <div className="stage-desc" style={{color:"var(--green)"}}>
+                      {rtl?"✓ مكتملة":"✓ Completed"}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  {done&&<span className="stage-status-badge" style={{background:"rgba(77,184,122,.15)",color:"var(--green)"}}>✓ {rtl?"تم":"Done"}</span>}
+                  {active&&<span className="stage-status-badge" style={{background:"rgba(201,168,76,.15)",color:"var(--gold)"}}>● {rtl?"الآن":"Now"}</span>}
+                  {upcoming&&<span className="stage-status-badge" style={{background:"var(--b)",color:"var(--cr3)"}}>{rtl?"قادم":"Upcoming"}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Factory status if applicable */}
+      {job.factoryStatus&&(
+        <div className="cust-card">
+          <div style={{fontFamily:"var(--fd)",fontSize:17,color:"var(--cr)",marginBottom:12}}>
+            🏭 {rtl?"حالة التصنيع":"Manufacturing Status"}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12,background:"rgba(224,92,160,.08)",border:"1px solid rgba(224,92,160,.25)",borderRadius:10,padding:"12px 16px"}}>
+            <span style={{fontSize:22}}>🏭</span>
+            <div>
+              <div style={{fontSize:12,color:"var(--cr3)",marginBottom:3}}>{rtl?"الحالة الحالية":"Current Status"}</div>
+              <div style={{fontSize:15,fontWeight:600,color:"var(--pink)"}}>{job.factoryStatus}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer note */}
+      <div style={{fontSize:12,color:"var(--cr3)",textAlign:"center",padding:"8px 0 24px",lineHeight:1.7}}>
+        {rtl
+          ? "للاستفسار عن مشروعك، تواصل مع فريق NOVAHome 📞"
+          : "For any questions about your project, contact the NOVAHome team 📞"}
+      </div>
+    </div>
+  );
+}
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────
 function UserManagement({users,dispatch,auth}) {
   const d=dispatch;
-  const byRole = Object.keys(ROLES).map(r=>({role:r,users:users.filter(u=>u.role===r)}));
+  const byRole = Object.keys(ROLES).filter(r=>r!=="customer").map(r=>({role:r,users:users.filter(u=>u.role===r)}));
   return (
     <div>
       {byRole.filter(g=>g.users.length>0).map(g=>(
@@ -707,6 +881,17 @@ function UserManagement({users,dispatch,auth}) {
           </div>
         </div>
       ))}
+
+      {/* Customer login info box */}
+      <div className="card" style={{borderColor:"rgba(201,168,76,.3)",background:"rgba(201,168,76,.04)"}}>
+        <div className="card-title" style={{color:"var(--gold)"}}>🏠 Customer Portal Access</div>
+        <div style={{fontSize:12.5,color:"var(--cr3)",lineHeight:1.8,marginBottom:12}}>
+          Customers log in using their <strong style={{color:"var(--cr)"}}>National ID</strong> and <strong style={{color:"var(--cr)"}}>registered phone number</strong>. They only see their own project progress — no other data.
+        </div>
+        <div style={{fontSize:11.5,color:"var(--cr3)"}}>
+          To set up customer access, add <code style={{background:"var(--sf2)",padding:"1px 6px",borderRadius:4,color:"var(--gold)"}}>customerId</code> and <code style={{background:"var(--sf2)",padding:"1px 6px",borderRadius:4,color:"var(--gold)"}}>customerPhone</code> when creating or editing a job.
+        </div>
+      </div>
     </div>
   );
 }
@@ -725,12 +910,11 @@ function UserModal({user,onClose,onSave}) {
           <div className="field"><label>Password *</label><input value={f.password} onChange={e=>s("password",e.target.value)} placeholder="min 6 characters" /></div>
           <div className="field"><label>Role *</label>
             <select value={f.role} onChange={e=>s("role",e.target.value)}>
-              {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,30)}…</option>)}
+              {Object.entries(ROLES).filter(([k])=>k!=="customer").map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,30)}…</option>)}
             </select>
           </div>
           <div className="field fg-full"><label>Avatar Initials (2 letters)</label><input value={f.avatar} onChange={e=>s("avatar",e.target.value.slice(0,2).toUpperCase())} placeholder="e.g. SA" maxLength={2} /></div>
         </div>
-        {/* Role permissions preview */}
         {f.role&&(<div style={{marginTop:12,background:"var(--sf2)",border:"1px solid var(--b)",borderRadius:8,padding:"11px 13px"}}>
           <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".09em",color:"var(--gd)",marginBottom:8}}>This role can access:</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -753,6 +937,42 @@ function UserModal({user,onClose,onSave}) {
       </div>
     </div>
   );
+}
+
+// ── JOB MODAL — updated with customerId + customerPhone fields ─────────────
+function JobModal({job,onClose,onSave}) {
+  const [f,sf]=useState(job||{name:"",phone:"",email:"",address:"",source:"Walk-In",style:"Modern",budget:"",priority:"Medium",designer:DESIGNERS_LIST[0],notes:"",customerId:"",customerPhone:""});
+  const s=(k,v)=>sf(x=>({...x,[k]:v}));
+  return (<div className="ov" onClick={onClose}>
+    <div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="modal-title">{job?"Edit Job":"New Kitchen Job"}</div>
+      <div className="fg">
+        <div className="field"><label>Full Name *</label><input value={f.name} onChange={e=>s("name",e.target.value)} /></div>
+        <div className="field"><label>Phone *</label><input value={f.phone} onChange={e=>s("phone",e.target.value)} placeholder="+962 79…" /></div>
+        <div className="field"><label>Email</label><input value={f.email||""} onChange={e=>s("email",e.target.value)} /></div>
+        <div className="field"><label>Address</label><input value={f.address||""} onChange={e=>s("address",e.target.value)} /></div>
+        <div className="field"><label>Source</label><select value={f.source} onChange={e=>s("source",e.target.value)}>{SOURCES.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div className="field"><label>Kitchen Style</label><select value={f.style} onChange={e=>s("style",e.target.value)}>{STYLES.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div className="field"><label>Budget (JD)</label><input type="number" value={f.budget} onChange={e=>s("budget",Number(e.target.value))} placeholder="15000" /></div>
+        <div className="field"><label>Priority</label><select value={f.priority} onChange={e=>s("priority",e.target.value)}><option>High</option><option>Medium</option><option>Low</option></select></div>
+        <div className="field fg-full"><label>Assigned Designer</label><select value={f.designer} onChange={e=>s("designer",e.target.value)}>{DESIGNERS_LIST.map(x=><option key={x}>{x}</option>)}</select></div>
+        {/* Customer portal access */}
+        <div style={{gridColumn:"1/-1",background:"rgba(201,168,76,.06)",border:"1px solid rgba(201,168,76,.2)",borderRadius:8,padding:"11px 13px"}}>
+          <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".09em",color:"var(--gd)",marginBottom:10}}>🏠 Customer Portal Access</div>
+          <div className="fg">
+            <div className="field"><label>National ID</label><input value={f.customerId||""} onChange={e=>s("customerId",e.target.value)} placeholder="e.g. 9876543210" /></div>
+            <div className="field"><label>Customer Phone (for login)</label><input value={f.customerPhone||""} onChange={e=>s("customerPhone",e.target.value)} placeholder="+962 79…" /></div>
+          </div>
+          <div style={{fontSize:11,color:"var(--cr3)",marginTop:6}}>Customer logs in with these to track their project progress</div>
+        </div>
+        <div className="field fg-full"><label>Notes</label><textarea value={f.notes||""} onChange={e=>s("notes",e.target.value)} /></div>
+      </div>
+      <div className="modal-foot">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-gold" onClick={()=>{if(!f.name||!f.phone){alert("Name and phone required");return;}onSave(f);}}>{job?"Save":"Create Job"}</button>
+      </div>
+    </div>
+  </div>);
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────
@@ -894,17 +1114,14 @@ function JobDetail({job,dispatch,auth,perm}) {
   const [activeStage,setAS]=useState(job.stageId);
   useEffect(()=>setAS(job.stageId),[job.stageId]);
   const asg=stageObj(activeStage);
-  const canViewStage = asg?.visibleTo.includes(auth.role);
-  const canEditStage = asg?.editableBy.includes(auth.role);
-
-  // Only show stages visible to this role
-  const visStages = STAGES.filter(s=>s.visibleTo.includes(auth.role));
+  const canViewStage=asg?.visibleTo.includes(auth.role);
+  const canEditStage=asg?.editableBy.includes(auth.role);
+  const visStages=STAGES.filter(s=>s.visibleTo.includes(auth.role));
 
   return (
     <div>
-      {/* Stage track - only visible stages */}
       <div className="stage-track" style={{marginBottom:13}}>
-        {visStages.map((s,i)=>{
+        {visStages.map((s)=>{
           const globalIdx=stageIdx(s.id); const done=globalIdx<sidx; const active=s.id===job.stageId; const viewing=s.id===activeStage;
           return (<div key={s.id} className="stage-step" style={{background:done?"rgba(77,184,122,.1)":active?`${s.color}20`:"var(--sf2)",color:done?"var(--green)":active?s.color:"var(--cr3)",borderTop:viewing?`2px solid var(--gold)`:done?`1px solid var(--green)`:active?`1px solid ${s.color}`:"none"}} onClick={()=>setAS(s.id)}>
             <span className="stage-step-icon">{done?"✓":s.icon}</span>
@@ -920,36 +1137,33 @@ function JobDetail({job,dispatch,auth,perm}) {
               <span style={{fontSize:20}}>{asg?.icon}</span>
               <div style={{flex:1}}>
                 <div style={{fontFamily:"var(--fd)",fontSize:16,color:"var(--cr)"}}>{asg?.en}</div>
-                <div style={{fontSize:11.5,color:"var(--cr3)"}}>{asg?.editableBy.includes(auth.role)?"You can edit this stage":"View only"}</div>
+                <div style={{fontSize:11.5,color:"var(--cr3)"}}>{canEditStage?"You can edit this stage":"View only"}</div>
               </div>
               {activeStage===job.stageId&&<span className="badge b-gold" style={{fontSize:10}}>Current</span>}
-              {!canViewStage&&<span className="badge b-red" style={{fontSize:10}}>🔒 Restricted</span>}
             </div>
             <div className="stage-panel-body">
               {!canViewStage ? (
                 <div className="locked-stage">🔒 You don't have access to view this stage</div>
-              ) : (
-                <>
-                  <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".09em",color:"var(--cr3)",marginBottom:7}}>Checklist</div>
-                  <div className="checklist">
-                    {asg?.tasksEn.map((task,i)=>{
-                      const done=i<(job.completedTasks[activeStage]||0);
-                      return (<div key={i} className={`check-item${done?" done":""}`} onClick={()=>canEditStage&&d({type:"TOGGLE_TASK",id:job.id,stage:activeStage,idx:i})}>
-                        <div className="check-box">{done?"✓":""}</div>
-                        <span className="check-lbl">{task}</span>
-                        {!canEditStage&&<span style={{fontSize:10,color:"var(--cr3)"}}>🔒</span>}
-                      </div>);
-                    })}
-                  </div>
-                  {canEditStage&&<StageFields type={activeStage} job={job} d={d} auth={auth} perm={perm} />}
-                  {!canEditStage&&<div style={{background:"rgba(201,168,76,.06)",border:"1px solid rgba(201,168,76,.2)",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"var(--cr3)",marginTop:8}}>👁 View only — your role ({ROLES[auth.role].label}) cannot edit this stage</div>}
-                  {activeStage===job.stageId&&sidx<STAGE_IDS.length-1&&perm.canEdit&&(
-                    <button className="btn btn-gold" style={{marginTop:12,width:"100%",justifyContent:"center"}} onClick={()=>d({type:"ADV_STAGE",id:job.id,user:auth.name})}>
-                      Advance to {stageObj(STAGE_IDS[sidx+1])?.en} →
-                    </button>
-                  )}
-                </>
-              )}
+              ) : (<>
+                <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".09em",color:"var(--cr3)",marginBottom:7}}>Checklist</div>
+                <div className="checklist">
+                  {asg?.tasksEn.map((task,i)=>{
+                    const done=i<(job.completedTasks[activeStage]||0);
+                    return (<div key={i} className={`check-item${done?" done":""}`} onClick={()=>canEditStage&&d({type:"TOGGLE_TASK",id:job.id,stage:activeStage,idx:i})}>
+                      <div className="check-box">{done?"✓":""}</div>
+                      <span className="check-lbl">{task}</span>
+                      {!canEditStage&&<span style={{fontSize:10,color:"var(--cr3)"}}>🔒</span>}
+                    </div>);
+                  })}
+                </div>
+                {canEditStage&&<StageFields type={activeStage} job={job} d={d} auth={auth} perm={perm} />}
+                {!canEditStage&&<div style={{background:"rgba(201,168,76,.06)",border:"1px solid rgba(201,168,76,.2)",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"var(--cr3)",marginTop:8}}>👁 View only — your role ({ROLES[auth.role].label}) cannot edit this stage</div>}
+                {activeStage===job.stageId&&sidx<STAGE_IDS.length-1&&perm.canEdit&&(
+                  <button className="btn btn-gold" style={{marginTop:12,width:"100%",justifyContent:"center"}} onClick={()=>d({type:"ADV_STAGE",id:job.id,user:auth.name})}>
+                    Advance to {stageObj(STAGE_IDS[sidx+1])?.en} →
+                  </button>
+                )}
+              </>)}
             </div>
           </div>
 
@@ -977,7 +1191,6 @@ function JobDetail({job,dispatch,auth,perm}) {
           </div>
         </div>
 
-        {/* Right panel */}
         <div className="cust-side">
           <div className="info-blk">
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:11}}>
@@ -1000,6 +1213,13 @@ function JobDetail({job,dispatch,auth,perm}) {
               ...(job.deposit?[{k:"Deposit",v:<span style={{color:"var(--green)"}}>{fmt(job.deposit)}</span>}]:[]),
             ].map((r,i)=>(<div key={i} className="info-row"><span className="info-key">{r.k}</span><span className="info-val">{r.v}</span></div>))}
           </div>
+          {(job.customerId||job.customerPhone)&&(
+            <div className="info-blk" style={{borderColor:"rgba(201,168,76,.25)"}}>
+              <div className="info-ttl">🏠 Customer Portal</div>
+              {job.customerId&&<div className="info-row"><span className="info-key">National ID</span><span className="info-val" style={{color:"var(--gold)",fontFamily:"monospace"}}>{job.customerId}</span></div>}
+              {job.customerPhone&&<div className="info-row"><span className="info-key">Login Phone</span><span className="info-val" style={{color:"var(--gold)"}}>{job.customerPhone}</span></div>}
+            </div>
+          )}
           {(job.quoteNo||job.contractNo||job.factoryOrderNo)&&(
             <div className="info-blk">
               <div className="info-ttl">References</div>
@@ -1278,33 +1498,6 @@ function Products() {
       </div>))}
     </div>
   </>);
-}
-
-// ── JOB MODAL ──────────────────────────────────────────────────────────────
-function JobModal({job,onClose,onSave}) {
-  const [f,sf]=useState(job||{name:"",phone:"",email:"",address:"",source:"Walk-In",style:"Modern",budget:"",priority:"Medium",designer:DESIGNERS_LIST[0],notes:""});
-  const s=(k,v)=>sf(x=>({...x,[k]:v}));
-  return (<div className="ov" onClick={onClose}>
-    <div className="modal" onClick={e=>e.stopPropagation()}>
-      <div className="modal-title">{job?"Edit Job":"New Kitchen Job"}</div>
-      <div className="fg">
-        <div className="field"><label>Full Name *</label><input value={f.name} onChange={e=>s("name",e.target.value)} /></div>
-        <div className="field"><label>Phone *</label><input value={f.phone} onChange={e=>s("phone",e.target.value)} placeholder="+962 79…" /></div>
-        <div className="field"><label>Email</label><input value={f.email||""} onChange={e=>s("email",e.target.value)} /></div>
-        <div className="field"><label>Address</label><input value={f.address||""} onChange={e=>s("address",e.target.value)} /></div>
-        <div className="field"><label>Source</label><select value={f.source} onChange={e=>s("source",e.target.value)}>{SOURCES.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div className="field"><label>Kitchen Style</label><select value={f.style} onChange={e=>s("style",e.target.value)}>{STYLES.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div className="field"><label>Budget (JD)</label><input type="number" value={f.budget} onChange={e=>s("budget",Number(e.target.value))} placeholder="15000" /></div>
-        <div className="field"><label>Priority</label><select value={f.priority} onChange={e=>s("priority",e.target.value)}><option>High</option><option>Medium</option><option>Low</option></select></div>
-        <div className="field fg-full"><label>Assigned Designer</label><select value={f.designer} onChange={e=>s("designer",e.target.value)}>{DESIGNERS_LIST.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div className="field fg-full"><label>Notes</label><textarea value={f.notes||""} onChange={e=>s("notes",e.target.value)} /></div>
-      </div>
-      <div className="modal-foot">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-gold" onClick={()=>{if(!f.name||!f.phone){alert("Name and phone required");return;}onSave(f);}}>{job?"Save":"Create Job"}</button>
-      </div>
-    </div>
-  </div>);
 }
 
 // ── NOTE MODAL ─────────────────────────────────────────────────────────────
