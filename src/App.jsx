@@ -446,9 +446,9 @@ function LoginScreen({users,jobs,lang,rtl,onLogin,onLang}){
         <button className="btn btn-gold" style={{width:"100%",justifyContent:"center",padding:"10px"}} onClick={tryC}>{rtl?"عرض مشروعي":"View My Project"}</button>
       </>)}
       <div style={{marginTop:12,display:"flex",justifyContent:"center"}}><button className="btn btn-ghost btn-sm" onClick={onLang}>🌐 {rtl?"English":"عربي"}</button></div>
-      {/* APK DOWNLOAD - uncomment to show
+      {/* APK DOWNLOAD - uncomment to show*/}
       <div style={{marginTop:12,textAlign:"center"}}><a href="/NOVAHome.apk" download style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(77,184,122,.14)",color:"#4db87a",border:"1px solid rgba(77,184,122,.3)",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:500,textDecoration:"none"}}>📱 Download Android App</a></div>
-      */}
+      
     </div>
   </div>);
 }
