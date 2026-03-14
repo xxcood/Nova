@@ -659,10 +659,9 @@ function LoginScreen({users,lang,rtl,onLogin,onLang}) {
            </div>
          </div>
     </div> 
-    </a>
+    </>
   );
-  
-}
+ }
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────
 function UserManagement({users,dispatch,auth}) {
