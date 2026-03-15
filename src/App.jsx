@@ -240,6 +240,26 @@ select option{background:var(--sf2)}
 `;
 
 const avC = id => AV_COLORS[Math.abs((id||"").charCodeAt(0)||0)%8];
+function sendNotif(title, body) {
+  if(!("Notification" in window)) return;
+  if(Notification.permission === "granted") {
+    navigator.serviceWorker?.ready.then(reg => {
+      reg.showNotification(title, {
+        body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        vibrate: [200, 100, 200],
+      });
+    });
+  }
+}
+
+async function requestNotifPermission() {
+  if(!("Notification" in window)) return;
+  if(Notification.permission !== "granted") {
+    await Notification.requestPermission();
+  }
+}
 
 export default function App() {
   const [auth,setAuth]=useState(()=>{
