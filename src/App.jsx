@@ -260,6 +260,7 @@ export default function App() {
   const [toast,setToast]=useState(null);
   const [lang,setLang]=useState("en");
   const rtl=lang==="ar";
+  useEffect(()=>{ requestNotifPermission(); },[]);
   useEffect(()=>{
   if(auth) localStorage.setItem("nova_auth", JSON.stringify(auth));
   else localStorage.removeItem("nova_auth");
