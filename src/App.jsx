@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef  } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, collection, doc,
@@ -242,7 +242,12 @@ select option{background:var(--sf2)}
 const avC = id => AV_COLORS[Math.abs((id||"").charCodeAt(0)||0)%8];
 
 export default function App() {
-  const [auth,setAuth]=useState(null);
+  const [auth,setAuth]=useState(()=>{
+  try {
+    const saved = localStorage.getItem("nova_auth");
+    return saved ? JSON.parse(saved) : null;
+  } catch { return null; }
+});
   const [jobs,setJobs]=useState([]);
   const [users,setUsers]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -255,16 +260,44 @@ export default function App() {
   const [toast,setToast]=useState(null);
   const [lang,setLang]=useState("en");
   const rtl=lang==="ar";
+  useEffect(()=>{
+  if(auth) localStorage.setItem("nova_auth", JSON.stringify(auth));
+  else localStorage.removeItem("nova_auth");
+},[auth]);
   const showT=useCallback(msg=>{setToast(msg);setTimeout(()=>setToast(null),3000);},[]);
   const openM=(m,d=null)=>{setModal(m);setMdata(d);};
   const closeM=()=>{setModal(null);setMdata(null);};
   const mkLog=(txt,usr)=>({id:uid(),date:tod(),text:txt,user:usr||"System"});
 
-  useEffect(()=>{
-    const u1=onSnapshot(jobsCol,snap=>{
-      setJobs(snap.docs.map(d=>({fbId:d.id,...d.data()})));
-      setLoading(false);
-    });
+  const prevJobsRef = useRef([]);
+useEffect(()=>{
+  const u1=onSnapshot(jobsCol,snap=>{
+    const newJobs = snap.docs.map(d=>({fbId:d.id,...d.data()}));
+    // Check for changes and notify
+    if(prevJobsRef.current.length > 0 && auth) {
+      newJobs.forEach(nj => {
+        const oj = prevJobsRef.current.find(j=>j.fbId===nj.fbId);
+        if(!oj) return;
+        // Notify customer if their job stage changed
+        if(auth.role==="customer" && auth.jobId===nj.fbId && oj.stageId!==nj.stageId) {
+          sendNotif("🔄 Project Update!", `Your kitchen moved to: ${sObj(nj.stageId)?.cL}`);
+        }
+        // Notify customer if factory status changed
+        if(auth.role==="customer" && auth.jobId===nj.fbId && oj.factoryStatus!==nj.factoryStatus && nj.factoryStatus) {
+          sendNotif("🏭 Factory Update!", `Status: ${nj.factoryStatus}`);
+        }
+        // Notify admin/mgmt if approval needed
+        if(auth.role==="admin"||auth.role==="mgmt") {
+          if(oj.stageId!==nj.stageId && ["cust_approval","mgmt_approval"].includes(nj.stageId)) {
+            sendNotif("⏳ Approval Needed!", `${nj.name} needs approval`);
+          }
+        }
+      });
+    }
+    prevJobsRef.current = newJobs;
+    setJobs(newJobs);
+    setLoading(false);
+  });
     const u2=onSnapshot(usersCol,async snap=>{
       if(snap.empty){
         const b=writeBatch(db);
